@@ -1,5 +1,6 @@
 state("Sonic3D2d 1.26rc") {}
 state("Sonic3D2d 1.26") {}
+state("Sonic3D2d 1.26b") {}
 
 init
 {
@@ -10,15 +11,26 @@ init
         
     };
     vars.expectedlevel = 2;
+
+    vars.setGameClear = (Action<byte>)((value) => {
+        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268 ).Deref<int>(game) + 0x278 ;
+        vars.DebugOutput(String.Format("Setting clear file at {0:X} to {1:X}", offset, value));
+        game.WriteBytes( (IntPtr) offset, new byte[] { value }  );
+        
+    });
 }
 
 update {
     vars.watchers.UpdateAll(game);
-    if ( settings["upgradegameclear"] && vars.watchers["gameclear"].Current != 3 ) {
-        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268 ).Deref<int>(game) + 0x278 ;
-        vars.DebugOutput(String.Format("Upgrading clear file {0:X}", offset));
-        game.WriteBytes( (IntPtr) offset, new byte[] { 0x03 }  );
+    if ( settings["upgradegameclear"] ) {
+        if ( vars.watchers["gameclear"].Current != 3 && vars.watchers["splitidentifier"].Current == 20 && timer.CurrentPhase != TimerPhase.Running ) {
+            vars.setGameClear(0x03);
+        }
+        if ( vars.watchers["gameclear"].Current == 3 && vars.watchers["splitidentifier"].Current == 19 && timer.CurrentPhase != TimerPhase.Running ) {
+            vars.setGameClear(0x00);
+        }
     }
+
     if ( !vars.watchers["splitidentifier"].Changed ) {
         return false;
     }
