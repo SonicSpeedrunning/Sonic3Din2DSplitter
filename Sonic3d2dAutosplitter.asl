@@ -4,21 +4,36 @@ state("Sonic3D2d 1.26b") {}
 
 init
 {
+    const int SPLIT_INDENTIFIER   = 0x2C8,
+        GAME_CLEAR          = 0x278,
+        SHIELD              = 0x288,
+        CHECKPOINT          = 0x048,
+        CHECKPOINT_X        = 0x058,
+        CHECKPOINT_Y        = 0x068;
 
     vars.watchers = new MemoryWatcherList {
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, 0x2C8 ) ) { Name = "splitidentifier", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, 0x278 ) ) { Name = "gameclear", Enabled = true },
+        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, SPLIT_INDENTIFIER ) ) { Name = "splitidentifier", Enabled = true },
+        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, GAME_CLEAR ) ) { Name = "gameclear", Enabled = true },
         new MemoryWatcher<uint>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 4, 0x1AC, 0x2A4, 0x258, 0 ) ) { Name = "lives", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, 0x288 ) ) { Name = "shield", Enabled = true },
+        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, SHIELD ) ) { Name = "shield", Enabled = true },
+        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, CHECKPOINT ) ) { Name = "checkpoint", Enabled = true },
+        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, CHECKPOINT_X ) ) { Name = "checkpointX", Enabled = true },
+        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, CHECKPOINT_Y ) ) { Name = "checkpointY", Enabled = true },
         
     };
     vars.expectedlevel = 2;
 
-    vars.setGameClear = (Action<byte>)((value) => {
-        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268 ).Deref<int>(game) + 0x278 ;
-        vars.DebugOutput(String.Format("Setting clear file at {0:X} to {1:X}", offset, value));
-        game.WriteBytes( (IntPtr) offset, new byte[] { value }  );
+    vars.setGlobalVariable = (Action<int,int>)((variable, value) => {
+        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268 ).Deref<int>(game) + (int) variable;
+        byte[] bytes = BitConverter.GetBytes(value);
+
+        vars.DebugOutput(String.Format("Setting {0:X} at {1:X} to {2:X}",variable, offset, value));
+        game.WriteBytes( (IntPtr) offset, bytes  );
         
+    });
+
+    vars.setGameClear = (Action<byte>)((value) => {
+        vars.setGlobalVariable( GAME_CLEAR, value );
     });
     vars.setNiceLives = (Action)(() => {
         int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 4, 0x1AC, 0x2A4, 0x258 ).Deref<int>(game);
@@ -29,10 +44,88 @@ init
         
     });
     vars.setShield = (Action<byte>)((value) => {
-        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268 ).Deref<int>(game) + 0x288 ;
-        vars.DebugOutput(String.Format("Setting shield at {0:X} to {1:X}", offset, value));
-        game.WriteBytes( (IntPtr) offset, new byte[] { value }  );
+        vars.setGlobalVariable( SHIELD, value );       
+    });
+    vars.setCheckpoint =  (Action)(() => {
+        int checkpointx = 30;
+        int checkpointy = 9999;
+        int splitidentifier = vars.watchers["splitidentifier"].Current;
+
+        if ( settings["dd1checkpoint"] && splitidentifier == 7 ) {
+            checkpointx = 12200;
+            checkpointy = 500;
+        } else {
+
+            switch ( splitidentifier ) {
+                
+                case 1: /* GG1 */
+                    checkpointx = 9240;
+                    checkpointy = 1102;
+                    break;
+                case 2: /* GG2 */
+                    checkpointx = 9159;
+                    checkpointy = 277;
+                    break;
+                case 3: /* RR1 */
+                    checkpointx = 11093;
+                    checkpointy = 931;
+                    break;
+                case 4: /* RR2 */
+                    checkpointx = 6178;
+                    checkpointy = 359;
+                    break;
+                case 5: /* SS1 */
+                    checkpointx = 12260;
+                    checkpointy = 642;
+                    break;
+                case 6: /* SS2 */
+                    checkpointx = 12200;
+                    checkpointy = 770;
+                    break;
+                case 7: /* DD1 */
+                    checkpointx = 23863;
+                    checkpointy = 634;
+                    break;
+                case 8: /* DD2 */
+                    checkpointx = 7998;
+                    checkpointy = 1930;
+                    break;
+                case 9: /* VV1 */
+                    checkpointx = 8106;
+                    checkpointy = 2562;
+                    break;
+                case 10: /* VV2 */
+                    checkpointx = 5641;
+                    checkpointy = 279;
+                    break;
+                case 11: /* GeGa1 */
+                    checkpointx = 6528;
+                    checkpointy = 994;
+                    break;
+                case 12: /* GeGa2 */
+                    checkpointx = 8064;
+                    checkpointy = 2002;
+                    break;
+                case 13: /* PP1 */
+                    checkpointx = 15952;
+                    checkpointy = 498;
+                    break;
+                case 14: /* PP2 */
+                    checkpointx = 16672;
+                    checkpointy = 466;
+                    break;
+            }
+        }
         
+        if ( checkpointx > 0 && vars.watchers["checkpointX"].Current != checkpointx ) {
+            vars.setGlobalVariable(CHECKPOINT_X, checkpointx);
+        }
+        if ( checkpointy > 0 && vars.watchers["checkpointY"].Current != checkpointy ) {
+            vars.setGlobalVariable(CHECKPOINT_Y, checkpointy);
+        }
+        if ( vars.watchers["checkpointX"].Current > 0 && vars.watchers["checkpointY"].Current > 0 && vars.watchers["checkpoint"].Current != 1 ) {
+            vars.setGlobalVariable(CHECKPOINT, 1);
+        }
     });
     current.gamemode = 0;
 }
@@ -81,6 +174,9 @@ update {
                 if ( vars.watchers["shield"].Current != shield ) {
                     vars.setShield(shield);
                 }
+            }
+            if ( ( settings["bosscheckpoint"] || settings["dd1checkpoint"] ) && vars.watchers["splitidentifier"].Current > 0 ) {
+                vars.setCheckpoint();
             }
         }
     }
@@ -137,9 +233,11 @@ startup
     settings.Add("shield_lightning", false, "Lightning Shield", "shields");
     settings.Add("shield_bubble", false, "Bubble Shield", "shields");
     settings.Add("shield_homing", false, "Homing Shield", "shields");
+    settings.Add("bosscheckpoint", false, "Activate Boss Checkpoint", "cheats");
+    settings.Add("dd1checkpoint", false, "DD1 Jump Checkpoint", "cheats");
     vars.DebugOutput = (Action<string>)((text) => {
         string time = System.DateTime.Now.ToString("dd/MM/yy hh:mm:ss:fff");
         File.AppendAllText(logfile, "[" + time + "]: " + text + "\r\n");
-        print("[SEGA Master Splitter] "+text);
+        print("[S3D2D] "+text);
     });
 }
