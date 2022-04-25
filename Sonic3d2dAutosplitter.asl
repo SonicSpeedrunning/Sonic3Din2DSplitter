@@ -1,6 +1,8 @@
 state("Sonic3D2d 1.26rc") {}
 state("Sonic3D2d 1.26") {}
 state("Sonic3D2d 1.26b") {}
+state("Sonic3D2d 1.27") {}
+state("Sonic3D2d 1.28") {}
 
 init
 {
@@ -10,24 +12,30 @@ init
         CHECKPOINT          = 0x048,
         CHECKPOINT_X        = 0x058,
         CHECKPOINT_Y        = 0x068;
+    IntPtr ptr = IntPtr.Zero;
+    Action checkptr = () => { if (ptr == IntPtr.Zero) throw new NullReferenceException(); };
+    var scanner = new SignatureScanner(game, modules.First().BaseAddress, modules.First().ModuleMemorySize);
 
+
+    ptr = scanner.Scan(new SigScanTarget(2, "8B 3D ???????? 8B 0C 87") { OnFound = (p, s, addr) => (IntPtr)p.ReadValue<int>(addr) });
+    checkptr();
     vars.watchers = new MemoryWatcherList {
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, SPLIT_INDENTIFIER ) ) { Name = "splitidentifier", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, GAME_CLEAR ) ) { Name = "gameclear", Enabled = true },
-        new MemoryWatcher<uint>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 4, 0x1AC, 0x2A4, 0x258, 0 ) ) { Name = "lives", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, SHIELD ) ) { Name = "shield", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, CHECKPOINT ) ) { Name = "checkpoint", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, CHECKPOINT_X ) ) { Name = "checkpointX", Enabled = true },
-        new MemoryWatcher<ushort>( new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268, CHECKPOINT_Y ) ) { Name = "checkpointY", Enabled = true },
+        new MemoryWatcher<ushort>(new DeepPointer(ptr, 0, 0x268, SPLIT_INDENTIFIER) ) { Name = "splitidentifier", Enabled = true },
+        new MemoryWatcher<ushort>(new DeepPointer(ptr, 0, 0x268, GAME_CLEAR) ) { Name = "gameclear", Enabled = true },
+        new MemoryWatcher<uint>(new DeepPointer(ptr, 4, 0x1AC, 0x2A4, 0x258, 0) ) { Name = "lives", Enabled = true },
+        new MemoryWatcher<ushort>(new DeepPointer(ptr, 0, 0x268, SHIELD) ) { Name = "shield", Enabled = true },
+        new MemoryWatcher<ushort>(new DeepPointer(ptr, 0, 0x268, CHECKPOINT) ) { Name = "checkpoint", Enabled = true },
+        new MemoryWatcher<ushort>(new DeepPointer(ptr, 0, 0x268, CHECKPOINT_X) ) { Name = "checkpointX", Enabled = true },
+        new MemoryWatcher<ushort>(new DeepPointer(ptr, 0, 0x268, CHECKPOINT_Y) ) { Name = "checkpointY", Enabled = true },
         
     };
     vars.expectedlevel = 2;
 
     vars.setGlobalVariable = (Action<int,int>)((variable, value) => {
-        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 0, 0x268 ).Deref<int>(game) + (int) variable;
+        int offset = new DeepPointer(ptr, 0, 0x268).Deref<int>(game) + (int) variable;
         byte[] bytes = BitConverter.GetBytes(value);
 
-        vars.DebugOutput(String.Format("Setting {0:X} at {1:X} to {2:X}",variable, offset, value));
+        vars.DebugOutput(String.Format("Setting {0:X} at {1:X} to {2:X} ({3:X})",variable, offset, value, ptr));
         game.WriteBytes( (IntPtr) offset, bytes  );
         
     });
@@ -36,7 +44,7 @@ init
         vars.setGlobalVariable( GAME_CLEAR, value );
     });
     vars.setNiceLives = (Action)(() => {
-        int offset = new DeepPointer(game.ProcessName + ".exe", 0x0009F5D8, 4, 0x1AC, 0x2A4, 0x258 ).Deref<int>(game);
+        int offset = new DeepPointer(ptr, 4, 0x1AC, 0x2A4, 0x258).Deref<int>(game);
         uint value = 0xFFFFFFFF - 42069;
         byte[] bytes = BitConverter.GetBytes(value);
         vars.DebugOutput(String.Format("Setting lives at {0:X} to {1:X}", offset, value ));
@@ -54,7 +62,7 @@ init
         if ( settings["dd1checkpoint"] && splitidentifier == 7 ) {
             checkpointx = 12200;
             checkpointy = 500;
-        } else {
+        } else if ( settings["bosscheckpoint"] ) {
 
             switch ( splitidentifier ) {
                 
@@ -103,8 +111,8 @@ init
                     checkpointy = 994;
                     break;
                 case 12: /* GeGa2 */
-                    checkpointx = 8064;
-                    checkpointy = 2002;
+                    checkpointx = 6752;
+                    checkpointy = 882;
                     break;
                 case 13: /* PP1 */
                     checkpointx = 15952;
@@ -171,7 +179,7 @@ update {
                         shield = 5;
                     }
                 }
-                if ( vars.watchers["shield"].Current != shield ) {
+                if ( ( !settings["shield_onlyifnone"] && vars.watchers["shield"].Current != shield ) || ( settings["shield_onlyifnone"] && vars.watchers["shield"].Current == 0 ) ) {
                     vars.setShield(shield);
                 }
             }
@@ -233,6 +241,7 @@ startup
     settings.Add("shield_lightning", false, "Lightning Shield", "shields");
     settings.Add("shield_bubble", false, "Bubble Shield", "shields");
     settings.Add("shield_homing", false, "Homing Shield", "shields");
+    settings.Add("shield_onlyifnone", false, "...only if No Shield", "shields");
     settings.Add("bosscheckpoint", false, "Activate Boss Checkpoint", "cheats");
     settings.Add("dd1checkpoint", false, "DD1 Jump Checkpoint", "cheats");
     vars.DebugOutput = (Action<string>)((text) => {
