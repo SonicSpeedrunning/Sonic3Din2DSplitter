@@ -3,6 +3,7 @@ state("Sonic3D2d 1.26") {}
 state("Sonic3D2d 1.26b") {}
 state("Sonic3D2d 1.27") {}
 state("Sonic3D2d 1.28") {}
+state("Sonic3D2d 1.29") {}
 
 init
 {
